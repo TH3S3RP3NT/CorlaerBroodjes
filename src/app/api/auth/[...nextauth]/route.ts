@@ -4,7 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { formatName } from "@/lib/utils";
+import { formatName, extractUserIdFromEmail } from "@/lib/utils";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -25,6 +25,7 @@ export const authOptions: NextAuthOptions = {
                 try {
                     const googleId: string = profile.sub;
                     const email: string = user.email;
+                    const userId = extractUserIdFromEmail(email);
                     const rawName = user.name || "Onbekende gebruiker";
                     const formattedName = formatName(rawName);
                     const avatarUrl = user.image || null;
@@ -41,10 +42,11 @@ export const authOptions: NextAuthOptions = {
                         return false;
                     }
 
-                    // Gebruiker opslaan of bijwerken in Supabase (PostgreSQL)
+
                     await db
                         .insert(users)
                         .values({
+                            id: userId,
                             googleId,
                             email,
                             name: formattedName,
@@ -59,8 +61,6 @@ export const authOptions: NextAuthOptions = {
                                 role,
                             },
                         });
-
-                    return true;
                 } catch (error) {
                     console.error("Fout bij opslaan gebruiker in Supabase:", error);
                     return false;
@@ -80,12 +80,8 @@ export const authOptions: NextAuthOptions = {
                     .limit(1);
 
                 if (dbUser.length > 0) {
-                    const customUser = session.user as unknown as {
-                        id: number;
-                        role: "LEERLING" | "PERSONEEL" | "ADMIN";
-                    };
-                    customUser.id = dbUser[0].id;
-                    customUser.role = dbUser[0].role;
+                    session.user.id = dbUser[0].id;
+                    session.user.role = dbUser[0].role;
                 }
             }
             return session;

@@ -1,6 +1,5 @@
 import {
     pgTable,
-    serial,
     varchar,
     text,
     numeric,
@@ -13,7 +12,6 @@ import {
     index
 } from 'drizzle-orm/pg-core';
 
-// PostgreSQL Enums definiëren
 export const roleEnum = pgEnum('role', ['LEERLING', 'PERSONEEL', 'ADMIN']);
 export const orderStatusEnum = pgEnum('order_status', [
     'PENDING_PAYMENT',
@@ -26,7 +24,8 @@ export const orderStatusEnum = pgEnum('order_status', [
 
 // 1. Users
 export const users = pgTable('users', {
-    id: serial('id').primaryKey(),
+    // String als ID (bijv. "512345" of "fjansen")
+    id: varchar('id', { length: 100 }).primaryKey(),
     googleId: varchar('google_id', { length: 255 }).notNull().unique(),
     email: varchar('email', { length: 255 }).notNull().unique(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -37,7 +36,7 @@ export const users = pgTable('users', {
 
 // 2. Locations
 export const locations = pgTable('locations', {
-    id: serial('id').primaryKey(),
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     name: varchar('name', { length: 100 }).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -45,7 +44,7 @@ export const locations = pgTable('locations', {
 
 // 3. Products
 export const products = pgTable('products', {
-    id: serial('id').primaryKey(),
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     name: varchar('name', { length: 100 }).notNull(),
     description: text('description'),
     price: numeric('price', { precision: 6, scale: 2 }).notNull(),
@@ -58,8 +57,9 @@ export const products = pgTable('products', {
 
 // 4. Orders
 export const orders = pgTable('orders', {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    // userId is nu een varchar om overeen te komen met users.id ("512345" / "fjansen")
+    userId: varchar('user_id', { length: 100 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
     locationId: integer('location_id').notNull().references(() => locations.id, { onDelete: 'restrict' }),
     totalPrice: numeric('total_price', { precision: 6, scale: 2 }).notNull(),
     status: orderStatusEnum('status').default('PENDING_PAYMENT').notNull(),
@@ -75,7 +75,7 @@ export const orders = pgTable('orders', {
 
 // 5. Order Items
 export const orderItems = pgTable('order_items', {
-    id: serial('id').primaryKey(),
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     orderId: integer('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
     productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
     quantity: integer('quantity').default(1).notNull(),
@@ -84,7 +84,7 @@ export const orderItems = pgTable('order_items', {
 
 // 6. Daily Forecasts
 export const dailyForecasts = pgTable('daily_forecasts', {
-    id: serial('id').primaryKey(),
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     date: date('date').notNull(),
     productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
     predictedSales: integer('predicted_sales').default(0).notNull(),
