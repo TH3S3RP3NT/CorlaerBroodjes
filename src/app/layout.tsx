@@ -1,4 +1,5 @@
 import { Providers } from "./providers";
+import { Analytics } from '@vercel/analytics/next';
 
 export default function RootLayout({
                                      children,
@@ -7,8 +8,12 @@ export default function RootLayout({
 }) {
   return (
       <html lang="en">
+      <head>
+        <title>CorlaerBroodjes</title>
+      </head>
       <body>
       <Providers>{children}</Providers>
+      <Analytics />
       </body>
       </html>
   );
