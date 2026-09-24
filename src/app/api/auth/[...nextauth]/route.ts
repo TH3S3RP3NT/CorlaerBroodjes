@@ -6,7 +6,9 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { formatName, extractUserIdFromEmail } from "@/lib/utils";
 
+
 export const authOptions: NextAuthOptions = {
+    secret: process.env.NEXTAUTH_SECRET,
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -15,22 +17,14 @@ export const authOptions: NextAuthOptions = {
     ],
     callbacks: {
         async signIn({ user, account, profile }) {
-            // Zorg voor strikte types en checks tegen undefined
-            if (
-                account?.provider === "google" &&
-                profile &&
-                profile.sub &&
-                user.email
-            ) {
+            if (account?.provider === "google" && profile && profile.sub && user.email) {
                 try {
-                    const googleId: string = profile.sub;
                     const email: string = user.email;
                     const userId = extractUserIdFromEmail(email);
                     const rawName = user.name || "Onbekende gebruiker";
                     const formattedName = formatName(rawName);
                     const avatarUrl = user.image || null;
 
-                    // Rol bepalen op basis van het e-maildomein
                     let role: "LEERLING" | "PERSONEEL" = "LEERLING";
 
                     if (email.endsWith("@corlaercollege.nl")) {
@@ -38,16 +32,15 @@ export const authOptions: NextAuthOptions = {
                     } else if (email.endsWith("@lln.corlaercollege.nl")) {
                         role = "LEERLING";
                     } else {
-                        console.warn(`Inlogpoging geweigerd voor onbekend domein: ${email}`);
+                        console.warn(`[NextAuth] Geweigerd domein: ${email}`);
                         return false;
                     }
-
 
                     await db
                         .insert(users)
                         .values({
                             id: userId,
-                            googleId,
+                            googleId: profile.sub,
                             email,
                             name: formattedName,
                             avatarUrl,
@@ -61,32 +54,39 @@ export const authOptions: NextAuthOptions = {
                                 role,
                             },
                         });
+
+                    return true;
                 } catch (error) {
-                    console.error("Fout bij opslaan gebruiker in Supabase:", error);
+                    console.error("[NextAuth] Fout tijdens opslaan:", error);
                     return false;
                 }
             }
+
+
             return false;
         },
 
         async session({ session }) {
             if (session.user?.email) {
-                const email: string = session.user.email;
+                try {
+                    const dbUsers = await db
+                        .select()
+                        .from(users)
+                        .where(eq(users.email, session.user.email))
+                        .limit(1);
 
-                const dbUser = await db
-                    .select()
-                    .from(users)
-                    .where(eq(users.email, email))
-                    .limit(1);
-
-                if (dbUser.length > 0) {
-                    session.user.id = dbUser[0].id;
-                    session.user.role = dbUser[0].role;
+                    if (dbUsers.length > 0) {
+                        session.user.id = dbUsers[0].id;
+                        session.user.name = dbUsers[0].name;
+                        session.user.role = dbUsers[0].role;
+                    }
+                } catch (error) {
+                    console.error("[NextAuth] Session callback fout:", error);
                 }
             }
             return session;
-        },
-    },
+        }
+    }
 };
 
 const handler = NextAuth(authOptions);
