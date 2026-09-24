@@ -1,3 +1,4 @@
+// src/app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { db } from "@/db";
@@ -14,6 +15,7 @@ export const authOptions: NextAuthOptions = {
     ],
     callbacks: {
         async signIn({ user, account, profile }) {
+            // Zorg voor strikte types en checks tegen undefined
             if (
                 account?.provider === "google" &&
                 profile &&
@@ -21,14 +23,13 @@ export const authOptions: NextAuthOptions = {
                 user.email
             ) {
                 try {
-
                     const googleId: string = profile.sub;
                     const email: string = user.email;
                     const rawName = user.name || "Onbekende gebruiker";
                     const formattedName = formatName(rawName);
                     const avatarUrl = user.image || null;
 
-
+                    // Rol bepalen op basis van het e-maildomein
                     let role: "LEERLING" | "PERSONEEL" = "LEERLING";
 
                     if (email.endsWith("@corlaercollege.nl")) {
@@ -36,36 +37,32 @@ export const authOptions: NextAuthOptions = {
                     } else if (email.endsWith("@lln.corlaercollege.nl")) {
                         role = "LEERLING";
                     } else {
-                        console.warn(`Inlogpoging GEWEIGERD voor domein: ${email}`);
+                        console.warn(`Inlogpoging geweigerd voor onbekend domein: ${email}`);
                         return false;
                     }
 
-
-                    const existingUser = await db
-                        .select()
-                        .from(users)
-                        .where(eq(users.googleId, googleId))
-                        .limit(1);
-
-
-                    if (existingUser.length === 0) {
-                        await db.insert(users).values({
+                    // Gebruiker opslaan of bijwerken in Supabase (PostgreSQL)
+                    await db
+                        .insert(users)
+                        .values({
                             googleId,
                             email,
                             name: formattedName,
                             avatarUrl,
                             role,
+                        })
+                        .onConflictDoUpdate({
+                            target: users.googleId,
+                            set: {
+                                name: formattedName,
+                                avatarUrl,
+                                role,
+                            },
                         });
-                    } else {
-                        await db
-                            .update(users)
-                            .set({ name: formattedName, avatarUrl, role })
-                            .where(eq(users.googleId, googleId));
-                    }
 
                     return true;
                 } catch (error) {
-                    console.error("Fout bij opslaan van gebruiker in DB:", error);
+                    console.error("Fout bij opslaan gebruiker in Supabase:", error);
                     return false;
                 }
             }

@@ -1,7 +1,14 @@
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
-import * as schema from './schema';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
 
-const connection = mysql.createPool(process.env.DATABASE_URL!);
+const connectionString = process.env.DATABASE_URL;
 
-export const db = drizzle(connection, { schema, mode: 'default' });
+if (!connectionString) {
+    throw new Error("DATABASE_URL is niet ingesteld in .env.local");
+}
+
+// Supabase vereist 'prepare: false' voor poort 6543 (transaction pooler)
+const client = postgres(connectionString, { prepare: false });
+
+export const db = drizzle(client, { schema });
