@@ -11,6 +11,7 @@ import {
     uniqueIndex,
     index
 } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['LEERLING', 'PERSONEEL', 'ADMIN']);
 export const orderStatusEnum = pgEnum('order_status', [
@@ -94,3 +95,38 @@ export const dailyForecasts = pgTable('daily_forecasts', {
     uniqueIndex('uq_date_product').on(table.date, table.productId),
     index('idx_daily_forecasts_date').on(table.date),
 ]);
+export const usersRelations = relations(users, ({ many }) => ({
+    orders: many(orders),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+    user: one(users, {
+        fields: [orders.userId],
+        references: [users.id],
+    }),
+    location: one(locations, {
+        fields: [orders.locationId],
+        references: [locations.id],
+    }),
+    orderItems: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+    order: one(orders, {
+        fields: [orderItems.orderId],
+        references: [orders.id],
+    }),
+    product: one(products, {
+        fields: [orderItems.productId],
+        references: [products.id],
+    }),
+}));
+
+export const productsRelations = relations(products, ({ many }) => ({
+    orderItems: many(orderItems),
+    dailyForecasts: many(dailyForecasts),
+}));
+
+export const locationsRelations = relations(locations, ({ many }) => ({
+    orders: many(orders),
+}));

@@ -51,7 +51,6 @@ export const authOptions: NextAuthOptions = {
                             set: {
                                 name: formattedName,
                                 avatarUrl,
-                                role,
                             },
                         });
 
