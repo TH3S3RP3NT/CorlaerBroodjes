@@ -1,6 +1,7 @@
 import { Providers } from "./providers";
 import { Analytics } from '@vercel/analytics/next';
 import { GoogleAnalytics } from '@next/third-parties/google'
+import Header from "@/components/header";
 
 export default function RootLayout({
                                      children,
@@ -13,6 +14,7 @@ export default function RootLayout({
         <title>CorlaerBroodjes</title>
       </head>
       <body>
+      <Header />
       <Providers>{children}</Providers>
       <Analytics />
       <GoogleAnalytics gaId="G-VV0QWD6052" />
