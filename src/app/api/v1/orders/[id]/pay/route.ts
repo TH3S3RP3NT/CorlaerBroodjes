@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     const auth = await authenticate(request);
     if (!auth.ok) return auth.response;
 
-    if (process.env.ALLOW_FAKE_PAYMENT !== "true") {
+    if (process.env.ALLOW_FAKE_PAYMENT !== "true" || process.env.VERCEL_ENV === "production") {
         return jsonError(501, "betaling_niet_beschikbaar", "Online betalen is nog niet beschikbaar.");
     }
 

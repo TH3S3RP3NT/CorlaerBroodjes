@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { products } from "@/db/schema";
 import { authenticate, jsonError } from "@/lib/api";
 import { productDto } from "@/lib/dto";
+import { cancelStaleOrders } from "@/lib/stale-orders";
 
 // Alle producten met live voorraad. "inStock" is false bij uitverkocht (FE5/FE18).
 export async function GET(request: Request) {
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
     if (!auth.ok) return auth.response;
 
     try {
+        await cancelStaleOrders();
         const rows = await db.select().from(products).orderBy(asc(products.name));
         return Response.json({ products: rows.map(productDto) });
     } catch (error) {

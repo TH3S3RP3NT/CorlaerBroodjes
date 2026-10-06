@@ -9,6 +9,13 @@ if (!connectionString) {
 }
 
 // Supabase vereist 'prepare: false' voor poort 6543 (transaction pooler)
-const client = postgres(connectionString, { prepare: false });
+const globalForPostgres = globalThis as unknown as {
+    pg?: ReturnType<typeof postgres>;
+};
+const client = globalForPostgres.pg ?? postgres(connectionString, { prepare: false, max: 1 });
+
+if (process.env.NODE_ENV !== "production") {
+    globalForPostgres.pg = client;
+}
 
 export const db = drizzle(client, { schema });

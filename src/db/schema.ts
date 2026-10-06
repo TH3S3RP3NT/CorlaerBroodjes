@@ -9,9 +9,10 @@ import {
     timestamp,
     date,
     uniqueIndex,
-    index
+    index,
+    check
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 export const roleEnum = pgEnum('role', ['LEERLING', 'PERSONEEL', 'ADMIN']);
 export const orderStatusEnum = pgEnum('order_status', [
@@ -32,7 +33,7 @@ export const users = pgTable('users', {
     name: varchar('name', { length: 255 }).notNull(),
     avatarUrl: text('avatar_url'),
     role: roleEnum('role').default('LEERLING').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // 2. Locations
@@ -40,7 +41,7 @@ export const locations = pgTable('locations', {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     name: varchar('name', { length: 100 }).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // 3. Products
@@ -53,8 +54,10 @@ export const products = pgTable('products', {
     stockQuantity: integer('stock_quantity').default(0).notNull(),
     isAvailable: boolean('is_available').default(true).notNull(),
     preparationTimeMinutes: integer('preparation_time_minutes').default(2).notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+    check('stock_non_negative', sql`${table.stockQuantity} >= 0`),
+]);
 
 // 4. Orders
 export const orders = pgTable('orders', {
@@ -64,14 +67,15 @@ export const orders = pgTable('orders', {
     locationId: integer('location_id').notNull().references(() => locations.id, { onDelete: 'restrict' }),
     totalPrice: numeric('total_price', { precision: 6, scale: 2 }).notNull(),
     status: orderStatusEnum('status').default('PENDING_PAYMENT').notNull(),
-    pickupTime: timestamp('pickup_time').notNull(),
+    pickupTime: timestamp('pickup_time', { withTimezone: true }).notNull(),
     estimatedWaitTimeMinutes: integer('estimated_wait_time_minutes').default(0).notNull(),
     sumupTransactionId: varchar('sumup_transaction_id', { length: 255 }),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
     index('idx_orders_user').on(table.userId),
     index('idx_orders_status').on(table.status),
     index('idx_orders_pickup_time').on(table.pickupTime),
+    uniqueIndex('uq_orders_sumup_transaction').on(table.sumupTransactionId),
 ]);
 
 // 5. Order Items
@@ -81,7 +85,9 @@ export const orderItems = pgTable('order_items', {
     productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'restrict' }),
     quantity: integer('quantity').default(1).notNull(),
     unitPrice: numeric('unit_price', { precision: 6, scale: 2 }).notNull(),
-});
+}, (table) => [
+    index('idx_order_items_order').on(table.orderId),
+]);
 
 // 6. Daily Forecasts
 export const dailyForecasts = pgTable('daily_forecasts', {
@@ -90,7 +96,7 @@ export const dailyForecasts = pgTable('daily_forecasts', {
     productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
     predictedSales: integer('predicted_sales').default(0).notNull(),
     actualSales: integer('actual_sales'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
     uniqueIndex('uq_date_product').on(table.date, table.productId),
     index('idx_daily_forecasts_date').on(table.date),

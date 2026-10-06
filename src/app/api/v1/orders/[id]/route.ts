@@ -63,7 +63,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
             }
 
             const lines = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-            for (const line of lines) {
+            for (const line of [...lines].sort((a, b) => a.productId - b.productId)) {
                 await tx
                     .update(products)
                     .set({ stockQuantity: sql`${products.stockQuantity} + ${line.quantity}` })

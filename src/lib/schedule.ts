@@ -65,3 +65,11 @@ export function pickupInstant(slot: BreakSlot, now: Date = new Date()): Date {
     const guess = Date.UTC(p.year, p.month - 1, p.day, h, m);
     return new Date(guess - zoneOffsetMs(new Date(guess)));
 }
+
+export function isSchoolDay(now = new Date()): boolean {
+    const wd = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, weekday: "short" }).format(now);
+    if (wd === "Sat" || wd === "Sun") return false;
+    const p = partsInZone(now);
+    const today = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+    return !(process.env.NO_SCHOOL_DATES ?? "").split(",").map((s) => s.trim()).includes(today);
+}

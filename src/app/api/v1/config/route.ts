@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { locations } from "@/db/schema";
 import { authenticate, jsonError } from "@/lib/api";
-import { TIME_ZONE, getBreaks, orderLeadMinutes } from "@/lib/schedule";
+import { TIME_ZONE, getBreaks, isSchoolDay, orderLeadMinutes } from "@/lib/schedule";
 
 // Pauzetijden (voor de bestel-timer), bestelvenster, actieve ophaallocaties en servertijd.
 export async function GET(request: Request) {
@@ -20,6 +20,7 @@ export async function GET(request: Request) {
             timeZone: TIME_ZONE,
             serverTime: new Date().toISOString(),
             orderLeadMinutes: orderLeadMinutes(),
+            ordersOpen: isSchoolDay(),
             breaks: getBreaks(),
             locations: activeLocations,
         });

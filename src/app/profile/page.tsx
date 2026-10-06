@@ -6,6 +6,7 @@ import { orders } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 import Image from "next/image";
+import { StatusBadge } from "@/app/status-badge";
 
 export default async function ProfilePage() {
     const session = await getServerSession(authOptions);
@@ -18,6 +19,7 @@ export default async function ProfilePage() {
     const userOrders = await db.query.orders.findMany({
         where: eq(orders.userId, userId),
         orderBy: [desc(orders.createdAt)],
+        limit: 50,
         with: {
             orderItems: {
                 with: {
@@ -103,16 +105,7 @@ export default async function ProfilePage() {
                             >
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                                     <strong>Order #{order.id}</strong>
-                                    <span
-                                        style={{
-                                            padding: "2px 8px",
-                                            borderRadius: "4px",
-                                            fontSize: "0.85rem",
-                                            background: "#eee",
-                                        }}
-                                    >
-                    {order.status}
-                  </span>
+                                    <StatusBadge status={order.status} />
                                 </div>
 
                                 <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>

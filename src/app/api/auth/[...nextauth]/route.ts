@@ -9,6 +9,9 @@ import { formatName, extractUserIdFromEmail } from "@/lib/utils";
 
 export const authOptions: NextAuthOptions = {
     secret: process.env.NEXTAUTH_SECRET,
+    pages: {
+        signIn: "/login",
+    },
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -19,7 +22,7 @@ export const authOptions: NextAuthOptions = {
         async signIn({ user, account, profile }) {
             if (account?.provider === "google" && profile && profile.sub && user.email) {
                 try {
-                    const email: string = user.email;
+                    const email = user.email.toLowerCase();
                     const userId = extractUserIdFromEmail(email);
                     const rawName = user.name || "Onbekende gebruiker";
                     const formattedName = formatName(rawName);
@@ -65,23 +68,26 @@ export const authOptions: NextAuthOptions = {
             return false;
         },
 
-        async session({ session }) {
-            if (session.user?.email) {
-                try {
-                    const dbUsers = await db
-                        .select()
-                        .from(users)
-                        .where(eq(users.email, session.user.email))
-                        .limit(1);
-
-                    if (dbUsers.length > 0) {
-                        session.user.id = dbUsers[0].id;
-                        session.user.name = dbUsers[0].name;
-                        session.user.role = dbUsers[0].role;
-                    }
-                } catch (error) {
-                    console.error("[NextAuth] Session callback fout:", error);
+        async jwt({ token, user }) {
+            if (user?.email) {
+                const [dbUser] = await db
+                    .select({ id: users.id, role: users.role, name: users.name })
+                    .from(users)
+                    .where(eq(users.email, user.email.toLowerCase()))
+                    .limit(1);
+                if (dbUser) {
+                    token.uid = dbUser.id;
+                    token.role = dbUser.role;
+                    token.name = dbUser.name;
                 }
+            }
+            return token;
+        },
+        async session({ session, token }) {
+            if (session.user) {
+                session.user.id = token.uid;
+                session.user.role = token.role;
+                if (token.name) session.user.name = token.name;
             }
             return session;
         }

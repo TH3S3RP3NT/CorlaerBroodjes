@@ -1,10 +1,10 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
+import { StatusBadge } from "@/app/status-badge";
+import { requireAdmin } from "@/lib/auth";
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -18,15 +18,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         notFound();
     }
 
-    const session = await getServerSession(authOptions);
-
-    if (!session || !session.user) {
-        redirect("/api/auth/signin");
-    }
-
-    if (session.user.role !== "ADMIN") {
-        redirect("/");
-    }
+    await requireAdmin();
 
     const order = await db.query.orders.findFirst({
         where: eq(orders.id, orderId),
@@ -46,16 +38,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
     }
 
     return (
-        <main style={{ padding: "2rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto" }}>
-    <Link href="/admin" style={{ textDecoration: "none", color: "#0070f3", fontSize: "0.9rem" }}>
+        <main className="order-detail-page">
+    <Link className="order-detail-page__back" href="/admin">
 ← Terug naar Admin Dashboard
     </Link>
 
-    <h1 style={{ marginTop: "1rem" }}>Order Details #{order.id}</h1>
+    <h1>Order Details #{order.id}</h1>
 
     {/* Algemene Status & Klant Info */}
-    <section style={{ background: "#f9f9f9", padding: "1.5rem", borderRadius: "8px", marginBottom: "2rem" }}>
-    <p><strong>Status:</strong> <span style={{ padding: "4px 8px", background: "#eee", borderRadius: "4px" }}>{order.status}</span></p>
+    <section className="order-detail__summary">
+    <p><strong>Status:</strong> <StatusBadge status={order.status} /></p>
     <p><strong>Klant:</strong> {order.user.name} ({order.user.email})</p>
     <p><strong>Locatie:</strong> {order.location?.name || "Niet opgegeven"}</p>
     <p><strong>Ophaaltijd:</strong> {order.pickupTime ? new Date(order.pickupTime).toLocaleString("nl-NL") : "Direct"}</p>
@@ -66,22 +58,22 @@ export default async function OrderDetailPage({ params }: PageProps) {
     {/* Bestelde Producten */}
     <section>
         <h2>Bestelde Producten</h2>
-    <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+    <table className="order-detail__items">
     <thead>
-        <tr style={{ borderBottom: "2px solid #ddd", textAlign: "left" }}>
-    <th style={{ padding: "8px" }}>Product</th>
-    <th style={{ padding: "8px" }}>Aantal</th>
-    <th style={{ padding: "8px" }}>Stukprijs</th>
-    <th style={{ padding: "8px", textAlign: "right" }}>Totaal</th>
+        <tr>
+    <th>Product</th>
+    <th>Aantal</th>
+    <th>Stukprijs</th>
+    <th>Totaal</th>
     </tr>
     </thead>
     <tbody>
     {order.orderItems.map((item) => (
-            <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
-    <td style={{ padding: "8px" }}>{item.product.name}</td>
-    <td style={{ padding: "8px" }}>{item.quantity}x</td>
-    <td style={{ padding: "8px" }}>€{Number(item.unitPrice).toFixed(2)}</td>
-    <td style={{ padding: "8px", textAlign: "right" }}>
+            <tr key={item.id}>
+    <td>{item.product.name}</td>
+    <td>{item.quantity}x</td>
+    <td>€{Number(item.unitPrice).toFixed(2)}</td>
+    <td>
     €{(item.quantity * Number(item.unitPrice)).toFixed(2)}
     </td>
     </tr>
@@ -89,7 +81,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
     </tbody>
     </table>
 
-    <div style={{ textAlign: "right", marginTop: "1.5rem", fontSize: "1.2rem" }}>
+    <div className="order-detail__total">
     <strong>Totaalbedrag: €{Number(order.totalPrice).toFixed(2)}</strong>
     </div>
     </section>

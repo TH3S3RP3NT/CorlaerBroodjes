@@ -1,9 +1,11 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { locations, orderItems, orders, products } from "@/db/schema";
 import { ApiError, authenticate, jsonError } from "@/lib/api";
 import { orderDto } from "@/lib/dto";
-import { getBreaks, orderLeadMinutes, pickupInstant } from "@/lib/schedule";
+import { getBreaks, isSchoolDay, orderLeadMinutes, pickupInstant } from "@/lib/schedule";
+import { cancelStaleOrders } from "@/lib/stale-orders";
 
 const MAX_QUANTITY_PER_ITEM = 10;
 const MAX_DISTINCT_ITEMS = 20;
@@ -14,33 +16,31 @@ type OrderInput = {
     items: { productId: number; quantity: number }[];
 };
 
-function parseOrderInput(body: unknown): OrderInput | null {
-    if (typeof body !== "object" || body === null) return null;
-    const { locationId, pickupBreak, items } = body as Record<string, unknown>;
+const orderSchema = z.object({
+    locationId: z.number().int(),
+    pickupBreak: z.number().int().min(0),
+    items: z.array(z.object({
+        productId: z.number().int(),
+        quantity: z.number().int().min(1).max(MAX_QUANTITY_PER_ITEM),
+    })).min(1).max(MAX_DISTINCT_ITEMS),
+});
 
-    if (!Number.isInteger(locationId) || !Number.isInteger(pickupBreak) || !Array.isArray(items)) {
-        return null;
-    }
-    if (items.length === 0 || items.length > MAX_DISTINCT_ITEMS) return null;
+function parseOrderInput(body: unknown): OrderInput | null {
+    const parsed = orderSchema.safeParse(body);
+    if (!parsed.success) return null;
 
     // Dubbele productregels samenvoegen.
     const merged = new Map<number, number>();
-    for (const raw of items) {
-        if (typeof raw !== "object" || raw === null) return null;
-        const { productId, quantity } = raw as Record<string, unknown>;
-        if (!Number.isInteger(productId) || !Number.isInteger(quantity)) return null;
-        const q = quantity as number;
-        if (q < 1 || q > MAX_QUANTITY_PER_ITEM) return null;
-        const id = productId as number;
-        merged.set(id, (merged.get(id) ?? 0) + q);
+    for (const item of parsed.data.items) {
+        merged.set(item.productId, (merged.get(item.productId) ?? 0) + item.quantity);
     }
     for (const q of merged.values()) {
         if (q > MAX_QUANTITY_PER_ITEM) return null;
     }
 
     return {
-        locationId: locationId as number,
-        pickupBreak: pickupBreak as number,
+        locationId: parsed.data.locationId,
+        pickupBreak: parsed.data.pickupBreak,
         items: [...merged.entries()].map(([productId, quantity]) => ({ productId, quantity })),
     };
 }
@@ -51,9 +51,18 @@ export async function GET(request: Request) {
     if (!auth.ok) return auth.response;
 
     try {
+        const url = new URL(request.url);
+        const parsedLimit = Number(url.searchParams.get("limit"));
+        const limit = Math.min(Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20, 50);
+        const parsedBefore = Number(url.searchParams.get("before"));
+        const before = Number.isInteger(parsedBefore) && parsedBefore > 0 ? parsedBefore : null;
         const rows = await db.query.orders.findMany({
-            where: eq(orders.userId, auth.user.id),
-            orderBy: [desc(orders.createdAt)],
+            where: and(
+                eq(orders.userId, auth.user.id),
+                before ? lt(orders.id, before) : undefined,
+            ),
+            orderBy: [desc(orders.id)],
+            limit,
             with: { location: true, orderItems: { with: { product: true } } },
         });
         return Response.json({ orders: rows.map(orderDto) });
@@ -81,6 +90,24 @@ export async function POST(request: Request) {
     if (!input) {
         return jsonError(400, "ongeldige_invoer", "De bestelling is niet geldig.");
     }
+    if (!isSchoolDay()) {
+        return jsonError(409, "school_gesloten", "Bestellen is vandaag gesloten.");
+    }
+
+    try {
+        await cancelStaleOrders();
+    } catch (error) {
+        console.error("[api/v1/orders POST] stale-order cleanup", error);
+        return jsonError(500, "serverfout", "Je bestelling kon niet worden geplaatst. Probeer het opnieuw.");
+    }
+
+    const [{ count }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(orders)
+        .where(and(eq(orders.userId, auth.user.id), eq(orders.status, "PENDING_PAYMENT")));
+    if (count >= 2) {
+        return jsonError(409, "te_veel_open", "Rond eerst je openstaande bestelling af.");
+    }
 
     const slot = getBreaks()[input.pickupBreak];
     if (!slot) {
@@ -92,7 +119,6 @@ export async function POST(request: Request) {
     if (pickup.getTime() - now.getTime() < orderLeadMinutes() * 60_000) {
         return jsonError(409, "pauze_gesloten", `Bestellen voor de ${slot.name} is niet meer mogelijk.`);
     }
-
     try {
         const orderId = await db.transaction(async (tx) => {
             const [location] = await tx
@@ -114,7 +140,8 @@ export async function POST(request: Request) {
             let waitMinutes = 0;
             const lines: { productId: number; quantity: number; unitPrice: string }[] = [];
 
-            for (const item of input.items) {
+            const items = [...input.items].sort((a, b) => a.productId - b.productId);
+            for (const item of items) {
                 const product = byId.get(item.productId);
                 if (!product) {
                     throw new ApiError(400, "onbekend_product", "Een product in je bestelling bestaat niet meer.");
@@ -131,14 +158,19 @@ export async function POST(request: Request) {
                             gte(products.stockQuantity, item.quantity)
                         )
                     )
-                    .returning({ id: products.id });
+                    .returning({
+                        id: products.id,
+                        name: products.name,
+                        price: products.price,
+                        prep: products.preparationTimeMinutes,
+                    });
                 if (reserved.length === 0) {
                     throw new ApiError(409, "niet_op_voorraad", `${product.name} is niet meer op voorraad.`);
                 }
 
-                const unitCents = Math.round(Number(product.price) * 100);
+                const unitCents = Math.round(Number(reserved[0].price) * 100);
                 totalCents += unitCents * item.quantity;
-                waitMinutes += product.preparationTimeMinutes * item.quantity;
+                waitMinutes += reserved[0].prep * item.quantity;
                 lines.push({
                     productId: item.productId,
                     quantity: item.quantity,
