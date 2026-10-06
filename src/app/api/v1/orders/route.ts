@@ -6,6 +6,7 @@ import { ApiError, authenticate, jsonError } from "@/lib/api";
 import { orderDto } from "@/lib/dto";
 import { getBreaks, isSchoolDay, orderLeadMinutes, pickupInstant } from "@/lib/schedule";
 import { cancelStaleOrders } from "@/lib/stale-orders";
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 const MAX_QUANTITY_PER_ITEM = 10;
 const MAX_DISTINCT_ITEMS = 20;
@@ -204,6 +205,11 @@ export async function POST(request: Request) {
         });
         if (!created) {
             return jsonError(500, "serverfout", "De bestelling is geplaatst maar kon niet worden geladen.");
+        }
+        try {
+            await sendOrderConfirmationEmail(auth.user.email, created);
+        } catch (error) {
+            console.error("[api/v1/orders POST] confirmation email", error);
         }
         return Response.json({ order: orderDto(created) }, { status: 201 });
     } catch (error) {
