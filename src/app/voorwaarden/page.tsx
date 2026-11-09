@@ -80,7 +80,7 @@ export default function VoorwaardenPage() {
                         </h2>
                         <ol className="list-decimal pl-5 space-y-2">
                             <li>
-                                Omdat het gaat om de levering van verse, snel bederfelijke etenswaren, is het <strong>wettelijk herroepingsrecht (bedenktijd) niet van toepassing</strong> (art. 7:46c lid 1 sub f BW).
+                                Omdat het gaat om de levering van verse, snel bederfelijke etenswaren, is het <strong>wettelijk herroepingsrecht (bedenktijd) niet van toepassing</strong> (artikel 6:230p sub f onder 2 van het Burgerlijk Wetboek).
                             </li>
                             <li>Annuleren van een bestelling is enkel mogelijk zolang de bereiding van de bestelling nog niet is gestart.</li>
                         </ol>
