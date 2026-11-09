@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
 
                 <div className="space-y-6 text-sm sm:text-base leading-relaxed">
                     <section className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 p-4 rounded-lg text-xs sm:text-sm border border-gray-100">
-                        <div><strong>Laatst bijgewerkt:</strong> 9 oktober 2026</div>
+                        <div><strong>Laatst bijgewerkt:</strong> 9 november 2026</div>
                         <div><strong>Applicatie:</strong> Corlaer Broodjes (Kantine Web- & iOS-App)</div>
                         <div><strong>Domein:</strong> corlaerbroodjes.nl</div>
                         <div><strong>Ontwikkelaars:</strong> {process.env.LLN} (Klas A6in1, Begeleider: {process.env.BGL})</div>
@@ -173,7 +173,7 @@ export default function PrivacyPolicy() {
                     <section className="border-t pt-4 text-xs sm:text-sm text-gray-500">
                         <h2 className="font-semibold text-gray-700 mb-1">Wijzigingen in deze Privacyverklaring</h2>
                         <p>
-                            Dit privacybeleid kan veranderen als de wetgeving of onze app wijzigt. De actuele versie is altijd te vinden op corlaerbroodjes.nl.
+                            Dit privacybeleid kan veranderen als de wetgeving of onze app wijzigt. De actuele versie is altijd te vinden op <Link href={"/privacy"} className="text-blue-600 hover:underline font-medium">corlaerbroodjes.nl/privacy</Link>.
                         </p>
                     </section>
                 </div>
