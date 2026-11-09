@@ -4,6 +4,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import "./globals.css";
 import type { Metadata } from "next";
 import { Header } from "./header";
+import Footer from "@/app/footer";
 export const metadata: Metadata = { title: "CorlaerBroodjes" };
 
 export default function RootLayout({
@@ -22,6 +23,7 @@ export default function RootLayout({
       </Providers>
       <Analytics />
       <SpeedInsights />
+      <Footer/>
       </body>
       </html>
   );
